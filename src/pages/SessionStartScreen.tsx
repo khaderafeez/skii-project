@@ -3,31 +3,22 @@ import { Activity, Heart } from 'lucide-react';
 import { VitalCard } from '../components/VitalCard';
 import { BluetoothStatus } from '../components/BluetoothStatus';
 import { ECGWaveform } from '../components/ECGWaveform';
+import { usePolarData } from '../hooks/usePolarData';
 interface SessionStartScreenProps {
   onStartSession: () => void;
 }
 export function SessionStartScreen({
   onStartSession
 }: SessionStartScreenProps) {
-  const [heartRate, setHeartRate] = useState(72);
-  const [hrStdDev, setHrStdDev] = useState(8.3);
-  const [isConnected] = useState(true);
+  // Get real Polar H10 HR data via WebSocket
+  const { heartRate, isConnected, error } = usePolarData();
+
+  const [hrStdDev] = useState(8.3); // Placeholder - can calculate from RR in future
   const [countdown, setCountdown] = useState(30);
   const [phase, setPhase] = useState<'measuring' | 'done'>('measuring');
-  const vitalsIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
     null
   );
-  // Simulate live HR + SD updates every 1.5s
-  useEffect(() => {
-    vitalsIntervalRef.current = setInterval(() => {
-      setHeartRate(Math.round(68 + Math.random() * 20));
-      setHrStdDev(parseFloat((4 + Math.random() * 6).toFixed(1)));
-    }, 1500);
-    return () => {
-      if (vitalsIntervalRef.current) clearInterval(vitalsIntervalRef.current);
-    };
-  }, []);
   // 30-second countdown, then auto-start
   useEffect(() => {
     countdownIntervalRef.current = setInterval(() => {
@@ -118,10 +109,10 @@ export function SessionStartScreen({
             {phase === 'measuring' ?
             <>
                 <p className="text-sm font-mono font-bold text-medical-cyan tracking-widest">
-                  MEASURING
+                  {isConnected ? 'MEASURING' : 'WAITING FOR DEVICE'}
                 </p>
                 <p className="text-xs text-gray-500 mt-1">
-                  Please remain still and relaxed
+                  {error ? error : 'Please remain still and relaxed'}
                 </p>
               </> :
 
@@ -143,7 +134,7 @@ export function SessionStartScreen({
           <div className="grid grid-cols-2 gap-3">
             <VitalCard
               label="Heart Rate"
-              value={`${heartRate}`}
+              value={`${heartRate || '--'}`}
               unit="bpm"
               color="cyan"
               icon="heart" />

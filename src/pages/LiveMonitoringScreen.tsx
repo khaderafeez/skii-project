@@ -12,6 +12,7 @@ import { VitalCard } from '../components/VitalCard';
 import { BluetoothStatus } from '../components/BluetoothStatus';
 import { ECGWaveform } from '../components/ECGWaveform';
 import { RRIntervalWaveform } from '../components/RRIntervalWaveform';
+import { usePolarData } from '../hooks/usePolarData';
 interface LiveMonitoringScreenProps {
   onEndSession: () => void;
   onRestart: () => void;
@@ -20,35 +21,25 @@ export function LiveMonitoringScreen({
   onEndSession,
   onRestart
 }: LiveMonitoringScreenProps) {
-  const [heartRate, setHeartRate] = useState(74);
-  const [hrv, setHrv] = useState(52);
-  const [sdHr, setSdHr] = useState(8.3);
-  const [artifactPct, setArtifactPct] = useState(2.1);
-  const [avgRR, setAvgRR] = useState(847);
-  const [pnn50, setPnn50] = useState(23.4);
-  const [sdnn, setSdnn] = useState(42.1);
+  // Get real Polar H10 data via WebSocket
+  const { heartRate, hrv: rmssd, rr_intervals, isConnected, error } = usePolarData();
+
+  // Static/placeholder values (can be calculated from RR intervals in future)
+  const [sdHr] = useState(8.3);
+  const [artifactPct] = useState(2.1);
+  const [avgRR] = useState(847);
+  const [pnn50] = useState(23.4);
+  const [sdnn] = useState(42.1);
   const [sessionTime, setSessionTime] = useState(0);
-  const [isConnected] = useState(true);
   const [showStopWarning, setShowStopWarning] = useState(false);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const phase: 1 | 2 = sessionTime < 150 ? 1 : 2;
   useEffect(() => {
-    intervalRef.current = setInterval(() => {
-      const newHR = Math.round(68 + Math.random() * 20);
-      setHeartRate(newHR);
-      setHrv(Math.floor(Math.random() * 30) + 40);
-      setSdHr(parseFloat((6 + Math.random() * 6).toFixed(1)));
-      setArtifactPct(parseFloat((1 + Math.random() * 4).toFixed(1)));
-      setAvgRR(Math.round(820 + Math.random() * 80));
-      setPnn50(parseFloat((18 + Math.random() * 20).toFixed(1)));
-      setSdnn(parseFloat((35 + Math.random() * 20).toFixed(1)));
-    }, 2000);
+    // Only update session timer
     timerRef.current = setInterval(() => {
       setSessionTime((prev) => prev + 1);
     }, 1000);
     return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, []);
@@ -213,14 +204,14 @@ export function LiveMonitoringScreen({
           <div className="grid grid-cols-3 gap-2">
             <VitalCard
               label="Heart Rate"
-              value={`${heartRate}`}
+              value={`${heartRate || '--'}`}
               unit="bpm"
               color="cyan"
               icon="heart" />
             
             <VitalCard
               label="HRV"
-              value={`${hrv}`}
+              value={`${rmssd || '--'}`}
               unit="ms"
               color="green"
               icon="activity" />

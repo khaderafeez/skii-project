@@ -1,0 +1,18 @@
+[Unit]
+Description=Polar H10 HRV Monitor Backend - WebSocket Server
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/skii-project/backend
+Environment="PATH=/home/pi/skii-project/backend/venv/bin"
+ExecStart=/home/pi/skii-project/backend/venv/bin/python3 /home/pi/skii-project/backend/polar_server.py
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
