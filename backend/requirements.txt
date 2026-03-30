@@ -1,0 +1,4 @@
+bleak
+polar_python
+numpy
+websockets
