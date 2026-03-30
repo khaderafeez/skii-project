@@ -30,7 +30,7 @@ export function useTelemetry(): TelemetryData {
 
   const wsRef = useRef<WebSocket | null>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const watchdogRef = useRef<NodeJS.Timeout | null>(null); // UI Data Watchdog
+  const watchdogRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const connect = () => {
@@ -55,15 +55,13 @@ export function useTelemetry(): TelemetryData {
             return;
           }
 
-          if (payload.heartRate) {
-            // Reset the watchdog timer every time valid data arrives
+          if (payload.heartRate && payload.heartRate > 0) {
             if (watchdogRef.current) clearTimeout(watchdogRef.current);
             
-            // If we don't hear anything for 4 seconds, force disconnect the UI
             watchdogRef.current = setTimeout(() => {
-              console.warn("UI Watchdog: No data for 4s. Assuming disconnected.");
+              console.warn("UI Watchdog: No valid data for 3s. Assuming disconnected.");
               setData(prev => ({ ...prev, connectionStatus: 'disconnected' }));
-            }, 4000);
+            }, 3000);
 
             setData(prev => ({
               ...prev,
