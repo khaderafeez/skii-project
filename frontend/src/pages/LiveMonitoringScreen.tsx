@@ -22,7 +22,8 @@ export function LiveMonitoringScreen({ onEndSession, onRestart, telemetryData }:
     artifactPct, 
     avgRR, 
     pnn50, 
-    sdnn 
+    sdnn,
+    latestRR // Added: We need the raw intervals for the waveform!
   } = telemetryData;
 
   const [sessionTime, setSessionTime] = useState(0);
@@ -150,7 +151,12 @@ export function LiveMonitoringScreen({ onEndSession, onRestart, telemetryData }:
       <main className="flex-1 px-4 py-4 flex flex-col gap-4 overflow-y-auto">
         <div>
           <p className="text-xs text-gray-500 uppercase tracking-widest mb-2">RR Interval Variability</p>
-          <RRIntervalWaveform isConnected={isConnected} heartRate={heartRate || 72} />
+          {/* Passed the live array into the component */}
+          <RRIntervalWaveform 
+            isConnected={isConnected} 
+            heartRate={heartRate || 72} 
+            rrIntervals={latestRR} 
+          />
         </div>
 
         <section aria-label="Primary Vitals">
@@ -168,7 +174,13 @@ export function LiveMonitoringScreen({ onEndSession, onRestart, telemetryData }:
             <VitalCard label="Avg RR" value={`${avgRR || '--'}`} unit="ms" color="blue" icon="activity" />
             <VitalCard label="PNN50" value={`${pnn50 || '--'}`} unit="%" color="teal" icon="activity" />
             <VitalCard label="SDNN" value={`${sdnn || '--'}`} unit="ms" color="indigo" icon="activity" />
-            <VitalCard label="Artifact %" value={`${artifactPct || '0'}`} unit="%" color={artifactPct > 5 ? 'red' : 'orange'} icon="alert" />
+            <VitalCard 
+              label="Artifact %" 
+              value={`${artifactPct || '0'}`} 
+              unit="%" 
+              color={artifactPct === 0 ? 'cyan' : artifactPct > 5 ? 'red' : 'orange'} 
+              icon="alert" 
+            />
           </div>
         </section>
       </main>

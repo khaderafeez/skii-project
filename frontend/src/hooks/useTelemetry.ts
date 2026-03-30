@@ -4,15 +4,15 @@ export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected';
 
 export interface TelemetryData {
   connectionStatus: ConnectionStatus;
-  isConnected: boolean; // Derived from connectionStatus for convenience
+  isConnected: boolean;
   heartRate: number;
-  hrv: number;       // Mapped from RMSSD
+  hrv: number;       
   sdnn: number;
   pnn50: number;
   avgRR: number;
   sdHr: number;
   artifactPct: number;
-  latestRR: number[]; // Used for the RR waveform
+  latestRR: number[]; 
 }
 
 export function useTelemetry(): TelemetryData {
@@ -29,11 +29,11 @@ export function useTelemetry(): TelemetryData {
   });
 
   const wsRef = useRef<WebSocket | null>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const watchdogRef = useRef<NodeJS.Timeout | null>(null); // UI Data Watchdog
 
   useEffect(() => {
-    // Connect to Python WebSocket server
     const connect = () => {
-      // If there's an existing connection, don't create a new one
       if (wsRef.current && wsRef.current.readyState < 2) return;
       
       const ws = new WebSocket('ws://localhost:8765');
@@ -42,8 +42,6 @@ export function useTelemetry(): TelemetryData {
       setData(prev => ({ ...prev, connectionStatus: 'connecting' }));
 
       ws.onopen = () => {
-        // We don't assume connection to the *device* is ready here.
-        // We wait for the first message with data.
         console.log("WebSocket connection established. Waiting for data...");
       };
 
@@ -53,10 +51,20 @@ export function useTelemetry(): TelemetryData {
           
           if (payload.status === "DISCONNECTED") {
             setData(prev => ({ ...prev, connectionStatus: 'disconnected' }));
+            if (watchdogRef.current) clearTimeout(watchdogRef.current);
             return;
           }
 
           if (payload.heartRate) {
+            // Reset the watchdog timer every time valid data arrives
+            if (watchdogRef.current) clearTimeout(watchdogRef.current);
+            
+            // If we don't hear anything for 4 seconds, force disconnect the UI
+            watchdogRef.current = setTimeout(() => {
+              console.warn("UI Watchdog: No data for 4s. Assuming disconnected.");
+              setData(prev => ({ ...prev, connectionStatus: 'disconnected' }));
+            }, 4000);
+
             setData(prev => ({
               ...prev,
               connectionStatus: 'connected',
@@ -72,34 +80,30 @@ export function useTelemetry(): TelemetryData {
           }
         } catch (error) {
           console.error("Error parsing telemetry data:", error);
-          setData(prev => ({ ...prev, connectionStatus: 'disconnected' }));
         }
       };
 
       ws.onclose = () => {
         setData(prev => ({ ...prev, connectionStatus: 'disconnected' }));
-        console.log("WebSocket closed. Attempting auto-reconnect...");
-        // Attempt auto-reconnect after 3 seconds
-        setTimeout(connect, 3000);
+        if (watchdogRef.current) clearTimeout(watchdogRef.current);
+        timeoutRef.current = setTimeout(connect, 3000);
       };
 
       ws.onerror = (err) => {
         console.error("WebSocket Error:", err);
-        setData(prev => ({ ...prev, connectionStatus: 'disconnected' }));
-        // onclose will be called next, which handles reconnect logic
         ws.close();
       };
     };
 
     connect();
 
-    // Cleanup on unmount
     return () => {
       if (wsRef.current) {
-        // Remove the onclose handler to prevent reconnect attempts on unmount
         wsRef.current.onclose = null;
         wsRef.current.close();
       }
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      if (watchdogRef.current) clearTimeout(watchdogRef.current);
     };
   }, []);
 

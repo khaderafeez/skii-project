@@ -70,7 +70,6 @@ function MeasurementStatus({ phase, countdown }: { phase: Phase, countdown: numb
   );
 }
 
-
 export function SessionStartScreen({ onStartSession, telemetryData }: SessionStartScreenProps) {
   const { heartRate, sdHr, isConnected, connectionStatus } = telemetryData;
   
@@ -87,7 +86,6 @@ export function SessionStartScreen({ onStartSession, telemetryData }: SessionSta
       setPhase('connecting');
     }
   }, [connectionStatus, phase]);
-
 
   // Countdown timer, only runs when in 'measuring' phase
   useEffect(() => {
@@ -172,8 +170,6 @@ export function SessionStartScreen({ onStartSession, telemetryData }: SessionSta
                   />
                 )}
               </svg>
-              {phase === 'measuring' && statusMap.measuring.icon}
-              {phase === 'done' && statusMap.done.icon}
             </div>
           )}
 

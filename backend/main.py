@@ -1,5 +1,6 @@
 import asyncio
 import json
+import time
 import numpy as np
 import websockets
 from bleak import BleakScanner
@@ -9,9 +10,9 @@ from polar_python.models import HRData
 # Global state
 clients = set()
 rr_buffer = []
-MAX_RR_BUFFER = 100 # Keep last 100 beats for HRV math
+MAX_RR_BUFFER = 100 
+last_data_time = time.time() # Heartbeat monitor
 
-# WebSocket connection handler
 async def ws_handler(websocket):
     clients.add(websocket)
     try:
@@ -19,10 +20,8 @@ async def ws_handler(websocket):
     finally:
         clients.remove(websocket)
 
-# Broadcast JSON data to all connected React clients
 async def broadcast(message):
     if clients:
-        # Create tasks for all sends and run them concurrently
         await asyncio.gather(*[client.send(message) for client in clients], return_exceptions=True)
 
 def calculate_metrics(rr_intervals):
@@ -30,29 +29,24 @@ def calculate_metrics(rr_intervals):
         return None
     
     rr_array = np.array(rr_intervals)
-    diff = np.diff(rr_array)
-    
-    # RMSSD (Root Mean Square of Successive Differences)
+    valid_rr = rr_array[rr_array > 0]
+    if len(valid_rr) < 2:
+        return None
+        
+    diff = np.diff(valid_rr)
     rmssd = np.sqrt(np.mean(diff ** 2))
-    
-    # SDNN (Standard Deviation of NN intervals)
-    sdnn = np.std(rr_array)
-    
-    # pNN50 (Percentage of successive intervals differing by > 50ms)
+    sdnn = np.std(valid_rr)
     nn50 = np.sum(np.abs(diff) > 50)
-    pnn50 = (nn50 / len(diff)) * 100
-    
-    # Avg RR
-    avg_rr = np.mean(rr_array)
-    
-    # SD HR (Standard deviation of Heart Rate)
-    # Convert RR (ms) to HR (bpm) for each interval to find SD
-    hr_array = 60000 / rr_array
+    pnn50 = (nn50 / len(diff)) * 100 if len(diff) > 0 else 0.0
+    avg_rr = np.mean(valid_rr)
+    hr_array = 60000 / valid_rr
     sd_hr = np.std(hr_array)
+    
+    if np.isnan(sd_hr) or np.isinf(sd_hr):
+        sd_hr = 0.0
 
-    # Simple Artifact % (RR intervals outside physiologically normal range 300ms - 2000ms)
     artifacts = np.sum((rr_array < 300) | (rr_array > 2000))
-    artifact_pct = (artifacts / len(rr_array)) * 100
+    artifact_pct = (artifacts / len(rr_array)) * 100 if len(rr_array) > 0 else 0.0
 
     return {
         "rmssd": round(rmssd, 1),
@@ -64,64 +58,90 @@ def calculate_metrics(rr_intervals):
     }
 
 async def polar_loop():
-    print("🔍 Scanning for Polar H10...")
-    device = await BleakScanner.find_device_by_filter(
-        lambda d, a: d.name and "Polar H10" in d.name,
-        timeout=10
-    )
-    if not device:
-        print("❌ Device not found")
-        await broadcast(json.dumps({"status": "DISCONNECTED"}))
-        return
+    loop = asyncio.get_running_loop()
+    global last_data_time, rr_buffer
+    
+    while True:
+        try:
+            print("🔍 Scanning for Polar H10...")
+            device = await BleakScanner.find_device_by_filter(
+                lambda d, a: d.name and "Polar H10" in d.name,
+                timeout=5
+            )
+            
+            if not device:
+                print("❌ Device not found. Retrying in 2s...")
+                await broadcast(json.dumps({"status": "DISCONNECTED"}))
+                await asyncio.sleep(2)
+                continue
 
-    print(f"✅ Found device: {device.name}")
-    await broadcast(json.dumps({"status": "CONNECTED"}))
+            print(f"✅ Found device: {device.name}")
+            await broadcast(json.dumps({"status": "CONNECTED"}))
 
-    async with PolarDevice(device) as polar_device:
-        print("📡 Connected! Streaming HR + HRV...")
-        
-        def hr_callback(data: HRData):
-            global rr_buffer
-            try:
-                hr = data.heartrate
-                rr = data.rr_intervals
+            async with PolarDevice(device) as polar_device:
+                print("📡 Connected! Streaming HR + HRV...")
+                last_data_time = time.time()
+                rr_buffer.clear()
                 
-                if rr:
-                    rr_buffer.extend(rr)
-                if len(rr_buffer) > MAX_RR_BUFFER:
-                    rr_buffer = rr_buffer[-MAX_RR_BUFFER:]
-                
-                metrics = calculate_metrics(rr_buffer)
-                
-                payload = {
-                    "status": "STREAMING",
-                    "heartRate": hr,
-                    "rrIntervals": rr, # Send the latest raw intervals for the waveform
-                }
-                
-                if metrics:
-                    payload.update(metrics)
-                
-                # Add a print statement to show what's being sent
-                print(f"-> Broadcasting: {json.dumps(payload)}")
+                def hr_callback(data: HRData):
+                    global rr_buffer, last_data_time
+                    last_data_time = time.time() # 💓 Update heartbeat
+                    
+                    try:
+                        hr = data.heartrate
+                        rr = data.rr_intervals
+                        
+                        if rr:
+                            rr_buffer.extend(rr)
+                        if len(rr_buffer) > MAX_RR_BUFFER:
+                            rr_buffer = rr_buffer[-MAX_RR_BUFFER:]
+                        
+                        metrics = calculate_metrics(rr_buffer)
+                        payload = {
+                            "status": "STREAMING",
+                            "heartRate": hr,
+                            "rrIntervals": rr,
+                        }
+                        if metrics:
+                            payload.update(metrics)
+                        
+                        loop.call_soon_threadsafe(
+                            lambda p: asyncio.create_task(broadcast(json.dumps(p))), 
+                            payload
+                        )
+                    except Exception as e:
+                        print("⚠️ Error in callback:", e)
 
-                # Broadcast to React frontend
-                asyncio.create_task(broadcast(json.dumps(payload)))
+                # Run the stream as a background task so it doesn't block our watchdog
+                stream_task = asyncio.create_task(polar_device.start_hr_stream(hr_callback=hr_callback))
                 
-            except Exception as e:
-                print("⚠️ Error in callback:", e)
+                # Concurrent Health Monitor
+                while True:
+                    await asyncio.sleep(1)
+                    
+                    # If 4 seconds pass without a heartbeat, kill the stuck stream
+                    if time.time() - last_data_time > 4.0:
+                        print("⚠️ Watchdog Timeout! Sensor dropped. Forcing disconnect...")
+                        rr_buffer.clear()
+                        await broadcast(json.dumps({"status": "DISCONNECTED"}))
+                        stream_task.cancel() # Force kill the blocked Bleak process
+                        break 
+                        
+                    # If the stream crashes on its own, break to restart
+                    if stream_task.done():
+                        break
 
-        await polar_device.start_hr_stream(hr_callback=hr_callback)
-        
-        # Keep connection alive
-        while True:
-            await asyncio.sleep(1)
+        except asyncio.CancelledError:
+            print("🛑 Stream forcefully cancelled by watchdog.")
+        except Exception as e:
+            print(f"🔌 BLE Connection Lost: {e}")
+            rr_buffer.clear()
+            await broadcast(json.dumps({"status": "DISCONNECTED"}))
+            await asyncio.sleep(2)
 
 async def main():
-    # Start the WebSocket server on port 8765
     print("🌐 Starting WebSocket Server on ws://localhost:8765")
     async with websockets.serve(ws_handler, "localhost", 8765):
-        # Run the Polar BLE loop concurrently
         await polar_loop()
 
 if __name__ == "__main__":
