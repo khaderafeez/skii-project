@@ -1,0 +1,22 @@
+# Version control
+.git/
+.gitignore
+
+# Environment variables & virtual environments
+.env
+venv/
+env/
+
+# Python cache and compiled files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Node.js dependencies and logs
+node_modules/
+npm-debug.log
+dist/
+
+# OS-specific artifacts
+.DS_Store

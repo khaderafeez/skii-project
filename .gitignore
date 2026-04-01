@@ -57,3 +57,7 @@ lerna-debug.log*
 *.njsproj
 *.sln
 *.sw?
+
+# Ignore Docker build artifacts and deployment bundles
+*.tar
+*.tar.gz
