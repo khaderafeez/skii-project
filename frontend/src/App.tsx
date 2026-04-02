@@ -40,6 +40,7 @@ export function App() {
         <SessionEndScreen
           onNewSession={() => setCurrentScreen('themeSelect')}
           onRestart={() => setCurrentScreen('sessionStart')}
+          telemetryData={telemetryData} // <--- ADDED THIS LINE
         />
       }
     </div>
