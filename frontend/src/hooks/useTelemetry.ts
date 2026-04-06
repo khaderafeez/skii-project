@@ -36,7 +36,9 @@ export function useTelemetry(): TelemetryData {
     const connect = () => {
       if (wsRef.current && wsRef.current.readyState < 2) return;
       
-      const ws = new WebSocket('ws://localhost:8765');
+      const host = window.location.hostname;
+      const ws = new WebSocket(`ws://${host}:8765`);
+      
       wsRef.current = ws;
 
       setData(prev => ({ ...prev, connectionStatus: 'connecting' }));

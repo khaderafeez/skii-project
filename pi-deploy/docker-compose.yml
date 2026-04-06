@@ -1,0 +1,16 @@
+services:
+  backend:
+    image: skii-backend:latest
+    network_mode: "host"
+    privileged: true
+    volumes:
+      - /var/run/dbus:/var/run/dbus
+    restart: unless-stopped
+
+  frontend:
+    image: skii-frontend:latest
+    ports:
+      - "80:80"
+    restart: unless-stopped
+    depends_on:
+      - backend
