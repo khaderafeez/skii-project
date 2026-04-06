@@ -13,9 +13,11 @@ export interface TelemetryData {
   sdHr: number;
   artifactPct: number;
   latestRR: number[]; 
+  resetSession: () => void;
 }
 
 export function useTelemetry(): TelemetryData {
+  // Initialize presentation state variables
   const [data, setData] = useState<Omit<TelemetryData, 'isConnected'>>({
     connectionStatus: 'connecting',
     heartRate: 0,
@@ -44,24 +46,26 @@ export function useTelemetry(): TelemetryData {
       setData(prev => ({ ...prev, connectionStatus: 'connecting' }));
 
       ws.onopen = () => {
-        console.log("WebSocket connection established. Waiting for data...");
+        console.log("[Network] WebSocket IPC established. Awaiting telemetry stream...");
       };
 
       ws.onmessage = (event) => {
         try {
           const payload = JSON.parse(event.data);
           
-          if (payload.status === "DISCONNECTED") {
+          // 1. Connection Fault Branch
+          if (payload.type === "STATUS" && payload.status === "DISCONNECTED") {
             setData(prev => ({ ...prev, connectionStatus: 'disconnected' }));
             if (watchdogRef.current) clearTimeout(watchdogRef.current);
             return;
           }
 
-          if (payload.heartRate && payload.heartRate > 0) {
+          // 2. High-Frequency Branch (Real-time waveforms & HR)
+          if (payload.type === "LIVE_TELEMETRY" && payload.heartRate > 0) {
+            // Reset hardware dropout watchdog
             if (watchdogRef.current) clearTimeout(watchdogRef.current);
-            
             watchdogRef.current = setTimeout(() => {
-              console.warn("UI Watchdog: No valid data for 3s. Assuming disconnected.");
+              console.warn("[Watchdog] IPC timeout. Transitioning to disconnected state.");
               setData(prev => ({ ...prev, connectionStatus: 'disconnected' }));
             }, 3000);
 
@@ -69,28 +73,38 @@ export function useTelemetry(): TelemetryData {
               ...prev,
               connectionStatus: 'connected',
               heartRate: payload.heartRate,
-              hrv: payload.rmssd ?? prev.hrv,
-              sdnn: payload.sdnn ?? prev.sdnn,
-              pnn50: payload.pnn50 ?? prev.pnn50,
-              avgRR: payload.avgRR ?? prev.avgRR,
-              sdHr: payload.sdHr ?? prev.sdHr,
-              artifactPct: payload.artifactPct ?? prev.artifactPct,
               latestRR: payload.rrIntervals ?? [],
             }));
           }
+
+          // 3. Low-Frequency Branch (150s Epoch Processed Metrics)
+          if (payload.type === "HRV_EPOCH" && payload.data) {
+            console.log("[Data] Processed Epoch Received:", payload.data);
+            setData(prev => ({
+              ...prev,
+              hrv: payload.data.rmssd ?? prev.hrv,
+              sdnn: payload.data.sdnn ?? prev.sdnn,
+              pnn50: payload.data.pnn50 ?? prev.pnn50,
+              avgRR: payload.data.avgRR ?? prev.avgRR,
+              sdHr: payload.data.sdHr ?? prev.sdHr,   
+              artifactPct: payload.data.artifactPct ?? prev.artifactPct,
+            }));
+          }
+
         } catch (error) {
-          console.error("Error parsing telemetry data:", error);
+          console.error("[Parse Error] Unrecognized IPC payload structure:", error);
         }
       };
 
       ws.onclose = () => {
         setData(prev => ({ ...prev, connectionStatus: 'disconnected' }));
         if (watchdogRef.current) clearTimeout(watchdogRef.current);
+        // Implement exponential backoff or standard 3s reconnect loop
         timeoutRef.current = setTimeout(connect, 3000);
       };
 
       ws.onerror = (err) => {
-        console.error("WebSocket Error:", err);
+        console.error("[Network Error] WebSocket failure:", err);
         ws.close();
       };
     };
@@ -98,6 +112,7 @@ export function useTelemetry(): TelemetryData {
     connect();
 
     return () => {
+      // Memory cleanup & IPC socket teardown on component unmount
       if (wsRef.current) {
         wsRef.current.onclose = null;
         wsRef.current.close();
@@ -107,8 +122,22 @@ export function useTelemetry(): TelemetryData {
     };
   }, []);
 
+  const resetSession = () => {
+    setData(prev => ({
+      ...prev,
+      hrv: 0,
+      sdnn: 0,
+      pnn50: 0,
+      avgRR: 0,
+      sdHr: 0,
+      artifactPct: 0,
+      latestRR: [],
+    }));
+  };
+
   return {
     ...data,
     isConnected: data.connectionStatus === 'connected',
+    resetSession, 
   };
 }

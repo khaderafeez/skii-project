@@ -65,6 +65,15 @@ export function LiveMonitoringScreen({ onEndSession, onRestart, telemetryData }:
     onEndSession();
   };
 
+  const isFirstEpoch = sessionTime < 150;
+  const timeLeft = 150 - (sessionTime % 150); // The modulo (%) makes it loop back to 150 automatically
+  
+  // Helper function to smartly format the unit string
+  const getUnit = (standardUnit: string) => {
+    if (isFirstEpoch) return `${timeLeft}s left`;
+    return `${standardUnit} • ${timeLeft}s`; 
+  };
+
   return (
     <div className="min-h-screen w-full bg-medical-bg text-white flex flex-col ecg-grid-bg relative">
       {/* Warning Modal Overlay */}
@@ -163,22 +172,47 @@ export function LiveMonitoringScreen({ onEndSession, onRestart, telemetryData }:
           <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-2">Primary Vitals</h3>
           <div className="grid grid-cols-3 gap-2">
             <VitalCard label="Heart Rate" value={`${heartRate || '--'}`} unit="bpm" color="cyan" icon="heart" />
-            <VitalCard label="HRV (RMSSD)" value={`${hrv || '--'}`} unit="ms" color="green" icon="activity" />
-            <VitalCard label="SD HR" value={sdHr ? `±${sdHr}` : '--'} unit="bpm" color="purple" icon="activity" />
+            <VitalCard 
+              label="HRV (RMSSD)" 
+              value={isFirstEpoch || !hrv ? '--' : `${hrv}`} 
+              unit={getUnit('ms')} 
+              color="green" icon="activity" 
+            />
+            <VitalCard 
+              label="SD HR" 
+              value={isFirstEpoch || !sdHr ? '--' : `±${sdHr}`} 
+              unit={getUnit('bpm')} 
+              color="purple" icon="activity" 
+            />
           </div>
         </section>
 
         <section aria-label="HRV Metrics">
           <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-2">HRV Metrics</h3>
           <div className="grid grid-cols-2 gap-2">
-            <VitalCard label="Avg RR" value={`${avgRR || '--'}`} unit="ms" color="blue" icon="activity" />
-            <VitalCard label="PNN50" value={`${pnn50 || '--'}`} unit="%" color="teal" icon="activity" />
-            <VitalCard label="SDNN" value={`${sdnn || '--'}`} unit="ms" color="indigo" icon="activity" />
+            <VitalCard 
+              label="Avg RR" 
+              value={isFirstEpoch || !avgRR ? '--' : `${avgRR}`} 
+              unit={getUnit('ms')} 
+              color="blue" icon="activity" 
+            />
+            <VitalCard 
+              label="PNN50" 
+              value={isFirstEpoch || !pnn50 ? '--' : `${pnn50}`} 
+              unit={getUnit('%')} 
+              color="teal" icon="activity" 
+            />
+            <VitalCard 
+              label="SDNN" 
+              value={isFirstEpoch || !sdnn ? '--' : `${sdnn}`} 
+              unit={getUnit('ms')} 
+              color="indigo" icon="activity" 
+            />
             <VitalCard 
               label="Artifact %" 
-              value={`${artifactPct || '0'}`} 
-              unit="%" 
-              color={artifactPct === 0 ? 'cyan' : artifactPct > 5 ? 'red' : 'orange'} 
+              value={isFirstEpoch ? '--' : `${artifactPct}`} 
+              unit={getUnit('%')} 
+              color={isFirstEpoch ? 'cyan' : (artifactPct === 0 ? 'cyan' : artifactPct > 5 ? 'red' : 'orange')} 
               icon="alert" 
             />
           </div>
