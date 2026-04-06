@@ -11,7 +11,6 @@ export function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('themeSelect');
   const [theme, setTheme] = useState<Theme>('cyan');
   
-  // Lift the telemetry state to the top-level component
   const telemetryData = useTelemetry();
 
   return (
@@ -32,15 +31,24 @@ export function App() {
       {currentScreen === 'liveMonitoring' &&
         <LiveMonitoringScreen
           onEndSession={() => setCurrentScreen('sessionEnd')}
-          onRestart={() => setCurrentScreen('sessionStart')}
+          onRestart={() => {
+            telemetryData.resetSession(); 
+            setCurrentScreen('sessionStart');
+          }}
           telemetryData={telemetryData}
         />
       }
       {currentScreen === 'sessionEnd' &&
         <SessionEndScreen
-          onNewSession={() => setCurrentScreen('themeSelect')}
-          onRestart={() => setCurrentScreen('sessionStart')}
-          telemetryData={telemetryData} // <--- ADDED THIS LINE
+          onNewSession={() => {
+            telemetryData.resetSession(); 
+            setCurrentScreen('themeSelect');
+          }}
+          onRestart={() => {
+            telemetryData.resetSession(); 
+            setCurrentScreen('sessionStart');
+          }}
+          telemetryData={telemetryData} 
         />
       }
     </div>

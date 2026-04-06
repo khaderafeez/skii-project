@@ -13,6 +13,7 @@ export interface TelemetryData {
   sdHr: number;
   artifactPct: number;
   latestRR: number[]; 
+  resetSession: () => void;
 }
 
 export function useTelemetry(): TelemetryData {
@@ -121,8 +122,22 @@ export function useTelemetry(): TelemetryData {
     };
   }, []);
 
+  const resetSession = () => {
+    setData(prev => ({
+      ...prev,
+      hrv: 0,
+      sdnn: 0,
+      pnn50: 0,
+      avgRR: 0,
+      sdHr: 0,
+      artifactPct: 0,
+      latestRR: [],
+    }));
+  };
+
   return {
     ...data,
     isConnected: data.connectionStatus === 'connected',
+    resetSession, 
   };
 }
