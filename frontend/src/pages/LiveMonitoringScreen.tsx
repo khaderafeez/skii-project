@@ -28,7 +28,7 @@ export function LiveMonitoringScreen({ onEndSession, onRestart, telemetryData }:
   } = telemetryData;
 
   const [sessionTime, setSessionTime] = useState(0);
-  const TEST_EPOCH = 30;
+  const TEST_EPOCH = 150;
   const isFirstEpoch = sessionTime < TEST_EPOCH;
 
   const activeMusicCategory = isFirstEpoch ? null : musicCategory;
