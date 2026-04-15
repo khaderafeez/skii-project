@@ -2,6 +2,12 @@ import { useState, useEffect, useRef } from 'react';
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected';
 
+export interface ClientContext {
+  title?: string;
+  pathname?: string;
+  userDetails?: { GroupType?: string };
+}
+
 export interface TelemetryData {
   connectionStatus: ConnectionStatus;
   isConnected: boolean;
@@ -13,12 +19,12 @@ export interface TelemetryData {
   sdHr: number;
   artifactPct: number;
   latestRR: number[]; 
+  musicCategory: string | null;
   resetSession: () => void;
 }
 
-export function useTelemetry(): TelemetryData {
-  // Initialize presentation state variables
-  const [data, setData] = useState<Omit<TelemetryData, 'isConnected'>>({
+export function useTelemetry(context?: ClientContext): TelemetryData {
+  const [data, setData] = useState<Omit<TelemetryData, 'isConnected' | 'resetSession'>>({
     connectionStatus: 'connecting',
     heartRate: 0,
     hrv: 0,
@@ -28,11 +34,14 @@ export function useTelemetry(): TelemetryData {
     sdHr: 0,
     artifactPct: 0,
     latestRR: [],
+    musicCategory: null,
   });
 
   const wsRef = useRef<WebSocket | null>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const watchdogRef = useRef<NodeJS.Timeout | null>(null);
+  const lastRmssdRef = useRef<number | null>(null);
+  const lastSubcategoryRef = useRef<string | null>(null);
 
   useEffect(() => {
     const connect = () => {
@@ -53,16 +62,13 @@ export function useTelemetry(): TelemetryData {
         try {
           const payload = JSON.parse(event.data);
           
-          // 1. Connection Fault Branch
           if (payload.type === "STATUS" && payload.status === "DISCONNECTED") {
             setData(prev => ({ ...prev, connectionStatus: 'disconnected' }));
             if (watchdogRef.current) clearTimeout(watchdogRef.current);
             return;
           }
 
-          // 2. High-Frequency Branch (Real-time waveforms & HR)
           if (payload.type === "LIVE_TELEMETRY" && payload.heartRate > 0) {
-            // Reset hardware dropout watchdog
             if (watchdogRef.current) clearTimeout(watchdogRef.current);
             watchdogRef.current = setTimeout(() => {
               console.warn("[Watchdog] IPC timeout. Transitioning to disconnected state.");
@@ -77,17 +83,59 @@ export function useTelemetry(): TelemetryData {
             }));
           }
 
-          // 3. Low-Frequency Branch (150s Epoch Processed Metrics)
           if (payload.type === "HRV_EPOCH" && payload.data) {
             console.log("[Data] Processed Epoch Received:", payload.data);
+
+            let newMusicCategory = lastSubcategoryRef.current;
+            const rawRmssd = payload.data.rmssd;
+            const parsedRmssd = Number.parseFloat(String(rawRmssd));
+            const hasValidRmssd = rawRmssd !== null && rawRmssd !== undefined && Number.isFinite(parsedRmssd);
+
+            if (
+              context?.title === "Cancer" &&
+              context?.pathname?.includes("skitiiorg") &&
+              context?.userDetails?.GroupType !== "Control" &&
+              hasValidRmssd
+            ) {
+              const rmssd = parsedRmssd;
+              let subcategoryValue = "Grounding";
+
+              if (rmssd < 20) {
+                subcategoryValue = "Grounding";
+              } else if (rmssd >= 20 && rmssd < 35) {
+                subcategoryValue = "Calming";
+              } else if (rmssd >= 35 && rmssd < 55) {
+                subcategoryValue = "Restorative";
+              } else if (rmssd >= 55) {
+                subcategoryValue = "Uplifting";
+              }
+
+              const lastRmssd = lastRmssdRef.current;
+              const percentChange = lastRmssd
+                ? Math.abs(rmssd - lastRmssd) / lastRmssd
+                : 1;
+
+              const subcategoryChanged = subcategoryValue !== lastSubcategoryRef.current;
+              const rmssdChangedEnough = percentChange >= 0.2;
+
+              if (subcategoryChanged && rmssdChangedEnough) {
+                newMusicCategory = subcategoryValue;
+                lastSubcategoryRef.current = subcategoryValue;
+                console.log(`[Audio Algo] Category switched to: ${subcategoryValue}`);
+              }
+
+              lastRmssdRef.current = rmssd;
+            }
+
             setData(prev => ({
               ...prev,
-              hrv: payload.data.rmssd ?? prev.hrv,
+              hrv: hasValidRmssd ? parsedRmssd : prev.hrv,
               sdnn: payload.data.sdnn ?? prev.sdnn,
               pnn50: payload.data.pnn50 ?? prev.pnn50,
               avgRR: payload.data.avgRR ?? prev.avgRR,
               sdHr: payload.data.sdHr ?? prev.sdHr,   
               artifactPct: payload.data.artifactPct ?? prev.artifactPct,
+              musicCategory: newMusicCategory,
             }));
           }
 
@@ -112,7 +160,6 @@ export function useTelemetry(): TelemetryData {
     connect();
 
     return () => {
-      // Memory cleanup & IPC socket teardown on component unmount
       if (wsRef.current) {
         wsRef.current.onclose = null;
         wsRef.current.close();
@@ -120,9 +167,12 @@ export function useTelemetry(): TelemetryData {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       if (watchdogRef.current) clearTimeout(watchdogRef.current);
     };
-  }, []);
+  }, [context?.title, context?.pathname, context?.userDetails?.GroupType]);
 
   const resetSession = () => {
+    lastRmssdRef.current = null;
+    lastSubcategoryRef.current = null;
+
     setData(prev => ({
       ...prev,
       hrv: 0,
@@ -132,6 +182,7 @@ export function useTelemetry(): TelemetryData {
       sdHr: 0,
       artifactPct: 0,
       latestRR: [],
+      musicCategory: null,
     }));
   };
 

@@ -1,14 +1,12 @@
-/* @import url() FONT IMPORTS MUST ALWAYS BE AT THE VERY TOP OF THIS FILE, ABOVE THE TAILWIND IMPORTS — DO NOT DELETE THIS COMMENT */
+/* Fonts */
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
 
-/* CRITICAL: THE FOLLOWING TAILWIND IMPORTS MUST NEVER BE DELETED OR REORDERED — DO NOT DELETE THIS COMMENT */
+/* Tailwind */
 @import 'tailwindcss/base';
 @import 'tailwindcss/components';
 @import 'tailwindcss/utilities';
 
-/* END TAILWIND IMPORTS — ALL OTHER CSS MUST GO BELOW THIS LINE */
-
-/* ── THEME: CYAN (default) ─────────────────────────────────── */
+/* Theme */
 :root,
 [data-theme="cyan"] {
   --medical-bg: #0a0a0a;
@@ -18,7 +16,6 @@
   --medical-red: #ff3366;
   --medical-grid: rgba(0, 217, 255, 0.1);
 }
-/* ── THEME: AMBER ──────────────────────────────────────────── */
 [data-theme="amber"] {
   --medical-bg: #0c0800;
   --medical-bg-secondary: #160f00;
@@ -27,7 +24,6 @@
   --medical-red: #ef4444;
   --medical-grid: rgba(245, 158, 11, 0.12);
 }
-/* ── THEME: VIOLET ─────────────────────────────────────────── */
 [data-theme="violet"] {
   --medical-bg: #07000f;
   --medical-bg-secondary: #0f0020;

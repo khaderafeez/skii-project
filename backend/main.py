@@ -8,7 +8,7 @@ from polar_python import PolarDevice
 from polar_python.models import HRData
 
 clients = set()
-EPOCH_DURATION_SEC = 150.0
+EPOCH_DURATION_SEC = 30.0
 
 async def ws_handler(websocket):
     clients.add(websocket)

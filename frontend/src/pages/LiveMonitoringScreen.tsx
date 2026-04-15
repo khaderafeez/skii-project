@@ -5,6 +5,7 @@ import { BluetoothStatus } from '../components/BluetoothStatus';
 import { ECGWaveform } from '../components/ECGWaveform';
 import { RRIntervalWaveform } from '../components/RRIntervalWaveform';
 import { TelemetryData } from '../hooks/useTelemetry';
+import { useAudioTherapy } from '../hooks/useAudioTherapy'; 
 
 interface LiveMonitoringScreenProps {
   onEndSession: () => void;
@@ -13,7 +14,6 @@ interface LiveMonitoringScreenProps {
 }
 
 export function LiveMonitoringScreen({ onEndSession, onRestart, telemetryData }: LiveMonitoringScreenProps) {
-  // Pull live data from the shared telemetry hook via props
   const { 
     isConnected, 
     heartRate, 
@@ -22,24 +22,29 @@ export function LiveMonitoringScreen({ onEndSession, onRestart, telemetryData }:
     artifactPct, 
     avgRR, 
     pnn50, 
-    sdnn,
-    latestRR // Added: We need the raw intervals for the waveform!
+    sdnn, 
+    latestRR, 
+    musicCategory 
   } = telemetryData;
 
   const [sessionTime, setSessionTime] = useState(0);
+  const TEST_EPOCH = 30;
+  const isFirstEpoch = sessionTime < TEST_EPOCH;
+
+  const activeMusicCategory = isFirstEpoch ? null : musicCategory;
+  const { currentPlaying, stopAudio } = useAudioTherapy(activeMusicCategory);
+
   const [showStopWarning, setShowStopWarning] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   
-  const phase: 1 | 2 = sessionTime < 150 ? 1 : 2;
+  const phase: 1 | 2 = isFirstEpoch ? 1 : 2;
 
   useEffect(() => {
-    // Timer should only run when connected
     if (isConnected) {
       timerRef.current = setInterval(() => {
         setSessionTime((prev) => prev + 1);
       }, 1000);
     } else {
-      // Clear interval if it exists and we're disconnected
       if (timerRef.current) {
         clearInterval(timerRef.current);
         timerRef.current = null;
@@ -60,15 +65,15 @@ export function LiveMonitoringScreen({ onEndSession, onRestart, telemetryData }:
   };
 
   const handleStopClick = () => setShowStopWarning(true);
+  
   const handleConfirmStop = () => {
     setShowStopWarning(false);
+    stopAudio();
     onEndSession();
   };
 
-  const isFirstEpoch = sessionTime < 150;
-  const timeLeft = 150 - (sessionTime % 150); // The modulo (%) makes it loop back to 150 automatically
+  const timeLeft = TEST_EPOCH - (sessionTime % TEST_EPOCH); 
   
-  // Helper function to smartly format the unit string
   const getUnit = (standardUnit: string) => {
     if (isFirstEpoch) return `${timeLeft}s left`;
     return `${standardUnit} • ${timeLeft}s`; 
@@ -76,7 +81,6 @@ export function LiveMonitoringScreen({ onEndSession, onRestart, telemetryData }:
 
   return (
     <div className="min-h-screen w-full bg-medical-bg text-white flex flex-col ecg-grid-bg relative">
-      {/* Warning Modal Overlay */}
       {showStopWarning && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
           <div className="w-full max-w-sm mx-4 bg-medical-bg-secondary border-2 border-medical-red rounded-xl p-6 shadow-2xl">
@@ -110,7 +114,6 @@ export function LiveMonitoringScreen({ onEndSession, onRestart, telemetryData }:
         </div>
       )}
 
-      {/* Header */}
       <header className="flex items-center justify-between px-4 py-3 border-b border-medical-grid">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-medical-cyan/10 border border-medical-cyan/30 flex items-center justify-center">
@@ -130,12 +133,13 @@ export function LiveMonitoringScreen({ onEndSession, onRestart, telemetryData }:
         </div>
       </header>
 
-      {/* Status Bar */}
       <div className="px-4 py-2 bg-medical-bg-secondary border-b border-medical-grid flex items-center gap-4 flex-wrap">
         <div className="flex items-center gap-2">
           <Music className="w-3.5 h-3.5 text-purple-400" />
           <span className="text-xs text-gray-500 uppercase tracking-wider">Music</span>
-          <span className="text-xs font-semibold text-purple-300 font-mono">CALMING</span>
+          <span className="text-xs font-semibold text-purple-300 font-mono">
+            {currentPlaying ? currentPlaying.toUpperCase() : "STANDBY"}
+          </span>
         </div>
         <div className="w-px h-3 bg-medical-grid hidden sm:block" />
         <div className="flex items-center gap-2">
@@ -160,7 +164,6 @@ export function LiveMonitoringScreen({ onEndSession, onRestart, telemetryData }:
       <main className="flex-1 px-4 py-4 flex flex-col gap-4 overflow-y-auto">
         <div>
           <p className="text-xs text-gray-500 uppercase tracking-widest mb-2">RR Interval Variability</p>
-          {/* Passed the live array into the component */}
           <RRIntervalWaveform 
             isConnected={isConnected} 
             heartRate={heartRate || 72} 
@@ -220,7 +223,10 @@ export function LiveMonitoringScreen({ onEndSession, onRestart, telemetryData }:
       </main>
 
       <div className="px-4 pb-4 pt-2 border-t border-medical-grid grid grid-cols-2 gap-3">
-        <button onClick={onRestart} className="py-3 rounded-lg border border-medical-cyan/40 bg-medical-cyan/5 hover:bg-medical-cyan/10 text-medical-cyan font-mono font-bold text-sm transition-colors flex items-center justify-center gap-2">
+        <button onClick={() => {
+            stopAudio();
+            onRestart();
+          }} className="py-3 rounded-lg border border-medical-cyan/40 bg-medical-cyan/5 hover:bg-medical-cyan/10 text-medical-cyan font-mono font-bold text-sm transition-colors flex items-center justify-center gap-2">
           <RefreshCw className="w-4 h-4" /> RESTART
         </button>
         <button onClick={handleStopClick} className="py-3 rounded-lg bg-medical-red/20 border border-medical-red text-medical-red font-mono font-bold text-sm hover:bg-medical-red/30 transition-colors flex items-center justify-center gap-2">
