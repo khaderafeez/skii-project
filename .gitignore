@@ -1,9 +1,14 @@
 # Node.js
-node_modules
-dist
-dist-ssr
+node_modules/
+dist/
+dist-ssr/
+.vite/
+.cache/
+coverage/
+*.tsbuildinfo
 *.local
 .DS_Store
+Thumbs.db
 
 # Python
 __pycache__/
@@ -29,6 +34,7 @@ share/python-wheels/
 *.egg
 MANIFEST
 .env
+.env.*
 .venv
 env/
 venv/
@@ -57,7 +63,16 @@ lerna-debug.log*
 *.njsproj
 *.sln
 *.sw?
+*.tmp
+*.temp
 
 # Ignore Docker build artifacts and deployment bundles
 *.tar
 *.tar.gz
+
+# Python tooling
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/

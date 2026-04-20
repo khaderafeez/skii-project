@@ -1,11 +1,14 @@
 import React from 'react';
 import { Activity } from 'lucide-react';
+
 export type Theme = 'cyan' | 'amber' | 'violet';
+
 interface ThemeSelectorProps {
   currentTheme: Theme;
   onSelectTheme: (theme: Theme) => void;
   onContinue: () => void;
 }
+
 const themes: {
   id: Theme;
   name: string;
@@ -16,36 +19,37 @@ const themes: {
   grid: string;
   green: string;
 }[] = [
-{
-  id: 'cyan',
-  name: 'NEURAL',
-  tagline: 'Clinical Cyan',
-  accent: '#00d9ff',
-  bg: '#0a0a0a',
-  secondary: '#121212',
-  grid: 'rgba(0,217,255,0.12)',
-  green: '#00ff88'
-},
-{
-  id: 'amber',
-  name: 'EMBER',
-  tagline: 'Warm Amber',
-  accent: '#f59e0b',
-  bg: '#0c0800',
-  secondary: '#160f00',
-  grid: 'rgba(245,158,11,0.12)',
-  green: '#84cc16'
-},
-{
-  id: 'violet',
-  name: 'AURA',
-  tagline: 'Deep Violet',
-  accent: '#a78bfa',
-  bg: '#07000f',
-  secondary: '#0f0020',
-  grid: 'rgba(167,139,250,0.12)',
-  green: '#34d399'
-}];
+  {
+    id: 'cyan',
+    name: 'NEURAL',
+    tagline: 'Clinical Cyan',
+    accent: '#00d9ff',
+    bg: '#0a0a0a',
+    secondary: '#121212',
+    grid: 'rgba(0,217,255,0.12)',
+    green: '#00ff88'
+  },
+  {
+    id: 'amber',
+    name: 'EMBER',
+    tagline: 'Warm Amber',
+    accent: '#f59e0b',
+    bg: '#0c0800',
+    secondary: '#160f00',
+    grid: 'rgba(245,158,11,0.12)',
+    green: '#84cc16'
+  },
+  {
+    id: 'violet',
+    name: 'AURA',
+    tagline: 'Deep Violet',
+    accent: '#a78bfa',
+    bg: '#07000f',
+    secondary: '#0f0020',
+    grid: 'rgba(167,139,250,0.12)',
+    green: '#34d399'
+  }
+];
 
 export function ThemeSelector({
   currentTheme,
@@ -53,6 +57,7 @@ export function ThemeSelector({
   onContinue
 }: ThemeSelectorProps) {
   const selected = themes.find((t) => t.id === currentTheme)!;
+
   return (
     <div
       className="min-h-screen w-full flex flex-col items-center justify-center p-6"
@@ -184,17 +189,16 @@ export function ThemeSelector({
                 </div>
 
                 {/* Selected indicator */}
-                {isActive &&
-                <div
-                  className="w-2 h-2 rounded-full flex-shrink-0"
-                  style={{
-                    backgroundColor: theme.accent,
-                    boxShadow: `0 0 6px ${theme.accent}`
-                  }} />
-
-                }
-              </button>);
-
+                {isActive && (
+                  <div
+                    className="w-2 h-2 rounded-full flex-shrink-0"
+                    style={{
+                      backgroundColor: theme.accent,
+                      boxShadow: `0 0 6px ${theme.accent}`
+                    }} />
+                )}
+              </button>
+            );
           })}
         </div>
 
@@ -211,6 +215,6 @@ export function ThemeSelector({
           BEGIN SESSION →
         </button>
       </div>
-    </div>);
-
+    </div>
+  );
 }
